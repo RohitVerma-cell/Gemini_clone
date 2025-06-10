@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import Answer from './components/Answer'; 
-const API_KEY = 'AIzaSyBFB9VxqIEMmW5n734xe9ggvf7s1nFGfGc';
-const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+import { key} from './constants';
+
+const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
 
 function App() {
   const [question, SetQuestion] = useState('');
