@@ -1,124 +1,163 @@
-import React, { useState } from 'react';
-import Answer from './components/Answer'; 
-import { key} from './constants';
+import React, { useState, useRef, useEffect } from 'react';
+import Answer from './components/Answer';
+import { key } from './constants';
 
 const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
 
 function App() {
-  const [question, SetQuestion] = useState('');
-  const [result, SetResult] = useState([]);
-  const [history, setHistory] = useState([]); 
+  const [question, setQuestion] = useState('');
+  const [result, setResult] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false); // For mobile sidebar toggle
+  const chatEndRef = useRef(null);
 
-  const Askquestion = async () => {
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [result]);
+
+  const askQuestion = async () => {
     if (!question.trim()) return;
+    setIsLoading(true);
 
-    const Payload = {
-      contents: [
-        {
-          parts: [{ text: question }],
-        },
-      ],
+    const payload = {
+      contents: [{ parts: [{ text: question }] }],
     };
 
-    let response = await fetch(URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Payload),
-    });
+    try {
+      const res = await fetch(URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    response = await response.json();
+      const data = await res.json();
 
-    let dataString = response.candidates[0]?.content?.parts[0]?.text || '';
-    const splitAnswers = dataString.split('* ').map((item) => item.trim()).filter(Boolean);
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const splitAnswers = text.split('* ').map((item) => item.trim()).filter(Boolean);
 
-    const newChat = [
-      { type: 'q', text: question },
-      { type: 'a', text: splitAnswers },
-    ];
+      const newChat = [
+        { type: 'q', text: question },
+        { type: 'a', text: splitAnswers },
+      ];
 
-    SetResult((prev) => [...prev, ...newChat]);
-
-    // Save in history
-    setHistory((prev) => [...prev, { id: Date.now(), title: question, chat: newChat }]);
-
-    SetQuestion('');
+      setResult((prev) => [...prev, ...newChat]);
+      setHistory((prev) => [...prev, { id: Date.now(), title: question, chat: newChat }]);
+      setQuestion('');
+    } catch (err) {
+      console.error('API Error:', err);
+      alert('Something went wrong. Try again later.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const loadHistory = (chat) => {
-    SetResult(chat);
+    setResult(chat);
+    setShowSidebar(false); // close sidebar on mobile
   };
 
   const clearHistory = () => {
     setHistory([]);
-    SetResult([]);
+    setResult([]);
   };
 
   return (
-    <div className='grid grid-cols-5 h-screen text-center'>
+    <div className="flex flex-col md:flex-row h-screen bg-black text-white">
+      {/* Mobile Sidebar Toggle Button */}
+      <div className="md:hidden flex justify-between items-center p-4 bg-zinc-900">
+        <button
+          onClick={() => setShowSidebar(!showSidebar)}
+          className="bg-zinc-700 px-4 py-2 rounded"
+        >
+          {showSidebar ? 'Close' : 'History'}
+        </button>
+        <h1 className="text-lg font-bold">Gemini Chat</h1>
+      </div>
+
       {/* Sidebar */}
-      <div className='col-span-1 bg-zinc-800 p-4 flex flex-col justify-between text-left text-white overflow-auto'>
-        <div>
-          <h2 className='text-xl font-bold mb-4'>History</h2>
-          {history.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => loadHistory(item.chat)}
-              className='block w-full text-left p-2 mb-2 bg-zinc-700 rounded hover:bg-zinc-600 transition'
-            >
-              {item.title.length > 30 ? item.title.slice(0, 30) + '...' : item.title}
-            </button>
-          ))}
-        </div>
+      <div
+        className={`bg-zinc-800 p-4 text-left overflow-auto md:static fixed top-0 left-0 h-full z-10 w-64 transition-transform duration-300 md:translate-x-0 ${
+          showSidebar ? 'translate-x-0' : '-translate-x-full'
+        } md:block`}
+      >
+        <h2 className="text-xl font-bold mb-4">History</h2>
+        {history.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => loadHistory(item.chat)}
+            className="block w-full text-left p-2 mb-2 bg-zinc-700 rounded hover:bg-zinc-600 transition"
+          >
+            {item.title.length > 30 ? item.title.slice(0, 30) + '...' : item.title}
+          </button>
+        ))}
         <button
           onClick={clearHistory}
-          className='bg-red-600 hover:bg-red-500 text-white p-2 rounded transition mt-4'
+          className="bg-red-600 hover:bg-red-500 text-white p-2 rounded transition mt-4"
         >
           Clear History
         </button>
       </div>
 
-      {/* Chat Area */}
-      <div className='col-span-4 p-10 flex flex-col justify-between'>
-        <div className='text-zinc-200 overflow-auto max-h-[80vh] scroll-smooth transition-all duration-500'>
-          <ul className='space-y-2'>
-            {result.map((item, index) => {
-              if (item.type === 'q') {
-                return (
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col justify-between p-4 md:p-10 relative">
+        {/* Chat List */}
+        <div
+          className={`overflow-auto ${
+            result.length === 0 ? 'flex-1 flex items-center justify-center' : 'max-h-[80vh]'
+          }`}
+        >
+          {result.length === 0 ? (
+            <p className="text-zinc-400 text-xl">Ask something to get started</p>
+          ) : (
+            <ul className="space-y-2 text-zinc-200">
+              {result.map((item, index) =>
+                item.type === 'q' ? (
                   <li
-                    key={index + Math.random()}
-                    className='text-right pr-4 bg-zinc-700 border-zinc-700 rounded-3xl w-fit ml-auto p-2 transition-all duration-300'
+                    key={`q-${index}`}
+                    className="text-right pr-4 bg-zinc-700 border-zinc-700 rounded-3xl w-fit ml-auto p-2 transition-all duration-300"
                   >
                     <Answer ans={item.text} index={index} totalresult={1} />
                   </li>
-                );
-              } else {
-                return item.text.map((ansItem, ansIndex) => (
-                  <li
-                    key={ansIndex + Math.random()}
-                    className='text-left p-2 bg-zinc-900 rounded-xl w-fit transition-all duration-300 animate-fadeIn'
-                  >
-                    <Answer ans={ansItem} index={ansIndex} totalresult={item.text.length} />
-                  </li>
-                ));
-              }
-            })}
-          </ul>
+                ) : (
+                  item.text.map((ansItem, ansIndex) => (
+                    <li
+                      key={`a-${index}-${ansIndex}`}
+                      className="text-left p-2 bg-zinc-900 rounded-xl w-fit transition-all duration-300 animate-fadeIn"
+                    >
+                      <Answer ans={ansItem} index={ansIndex} totalresult={item.text.length} />
+                    </li>
+                  ))
+                )
+              )}
+              <div ref={chatEndRef} />
+            </ul>
+          )}
         </div>
 
-        {/* Input */}
-        <div className='bg-zinc-800 w-1/2 p-1 pr-5 text-white m-auto rounded-3xl border border-zinc-400 flex h-16'>
+        {/* Input Bar */}
+        <div className="bg-zinc-800 w-full md:w-1/2 p-1 pr-3 text-white mx-auto rounded-3xl border border-zinc-400 flex h-14 mt-4">
           <input
-            type='text'
+            type="text"
             value={question}
-            onChange={(event) => SetQuestion(event.target.value)}
-            placeholder='Ask anything...'
-            className='w-full h-full p-3 outline-none bg-transparent'
+            onChange={(event) => setQuestion(event.target.value)}
+            placeholder="Ask anything..."
+            className="w-full h-full px-4 py-2 text-sm md:text-base bg-transparent outline-none"
+            onKeyDown={(e) => e.key === 'Enter' && askQuestion()}
+            disabled={isLoading}
           />
           <button
-            onClick={Askquestion}
-            className='px-4  hover:text-zinc-600   transition'
+            onClick={askQuestion}
+            disabled={isLoading}
+            className={`px-4 text-sm md:text-base transition ${
+              isLoading ? 'text-zinc-500' : 'hover:text-zinc-400'
+            }`}
           >
-            Ask
+            {isLoading ? (
+              <span className="animate-spin inline-block w-4 h-4 border-2 border-t-transparent border-white rounded-full"></span>
+            ) : (
+              'Ask'
+            )}
           </button>
         </div>
       </div>
@@ -127,6 +166,3 @@ function App() {
 }
 
 export default App;
-
-
-
