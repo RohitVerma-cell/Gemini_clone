@@ -1,15 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Answer from './components/Answer';
-import { key } from './constants';
+const Key = import.meta.env.VITE_API_KEY;
 
-const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Key}`;
 
 function App() {
   const [question, setQuestion] = useState('');
   const [result, setResult] = useState([]);
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false); // For mobile sidebar toggle
+  const [showSidebar, setShowSidebar] = useState(false);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -166,3 +166,5 @@ function App() {
 }
 
 export default App;
+
+
